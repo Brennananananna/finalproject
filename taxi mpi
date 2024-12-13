@@ -1,0 +1,63 @@
+from mpi4py import MPI
+import pandas as pd
+import numpy as np
+
+comm = MPI.COMM_WORLD
+rank = comm.Get_rank()
+size = comm.Get_size()
+
+if size != 12:
+    if rank == 0:
+        print("Error: This program requires exactly 12 ranks to process 12 months.")
+    MPI.Finalize()
+    exit()
+
+months = [
+    "2023-01", "2023-02", "2023-03", "2023-04",
+    "2023-05", "2023-06", "2023-07", "2023-08",
+    "2023-09", "2023-10", "2023-11", "2023-12"
+]
+
+file_path = f'/reference/ptolemy/class/dsci2022/mpi/data/yellow_tripdata_{months[rank]}.parquet'
+
+def process_chunk(df):
+    """Process a month's taxi data."""
+    df['trip_duration'] = pd.to_datetime(df['tpep_dropoff_datetime']) - pd.to_datetime(df['tpep_pickup_datetime'])
+    df['trip_duration'] = df['trip_duration'].dt.total_seconds() / 60.0
+    avg_duration = df['trip_duration'].mean()
+    avg_distance = df['trip_distance'].mean()
+    return avg_duration, avg_distance
+
+def read_and_process_data(rank, file_path):
+    """Read and process the data for a given rank (month)."""
+    try:
+        df = pd.read_parquet(file_path)
+    except FileNotFoundError:
+        print(f"File not found: {file_path} on rank {rank}")
+        return None, None
+    except Exception as e:
+        print(f"Error on rank {rank}: {e}")
+        return None, None
+
+    return process_chunk(df)
+
+avg_duration, avg_distance = read_and_process_data(rank, file_path)
+
+print(f"Rank {rank} - Processed {months[rank]} - Avg Duration: {avg_duration:.2f} min, Avg Distance: {avg_distance:.2f} miles")
+
+if rank != 0:
+    comm.send((avg_duration, avg_distance), dest=0, tag=rank)
+else:
+    all_results = [(avg_duration, avg_distance)]
+    cumulative_duration = avg_duration
+    cumulative_distance = avg_distance
+    for i in range(1, size):
+        data = comm.recv(source=i, tag=i)
+        print(f"Rank 0 received results from Rank {i}: {data}")
+        all_results.append(data)
+    cumulative_duration = np.mean([result[0] for result in all_results])
+    cumulative_distance = np.mean([result[1] for result in all_results])
+    print(f"\nFinal Overall Average Trip Duration: {cumulative_duration:.2f} minutes")
+    print(f"Final Overall Average Trip Distance: {cumulative_distance:.2f} miles")
+
+MPI.Finalize()
