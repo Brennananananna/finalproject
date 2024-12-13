@@ -1,0 +1,12 @@
+name: mpi_taxi_env
+channels:
+  - defaults
+dependencies:
+  - python=3.10
+  - mpi4py
+  - pandas
+  - numpy
+  - pyarrow
+  - fastparquet
+  - openmpi
+
