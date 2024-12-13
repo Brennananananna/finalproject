@@ -1,0 +1,22 @@
+#!/bin/bash
+#SBATCH --job-name=mpi_taxi_analysis
+#SBATCH --output=mpi_taxi_analysis.out
+#SBATCH --error=mpi_taxi_analysis.err
+#SBATCH --ntasks=12  # Number of MPI processes (one for each month)
+#SBATCH --time=00:30:00
+#SBATCH --cpus-per-task=1
+#SBATCH --partition=gpu-a100
+#SBATCH --mem-per-gpu=10G
+#SBATCH --gres=gpu:a100_1g.10gb:1
+#SBATCH --account=class-dsci2022
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=bmb906@msstate.edu
+module load miniconda3/24.3.0
+module load openmpi/4.1.4
+source activate mpi_taxi_env
+echo "Running on $(hostname)"
+echo "SLURM Job ID: $SLURM_JOB_ID"
+echo "SLURM Task ID: $SLURM_ARRAY_TASK_ID"
+echo "SLURM Node List: $SLURM_NODELIST"
+echo "SLURM CPUS on Node: $SLURM_CPUS_ON_NODE"
+mpirun -np 12 python mpi_taxi_analysis.py
